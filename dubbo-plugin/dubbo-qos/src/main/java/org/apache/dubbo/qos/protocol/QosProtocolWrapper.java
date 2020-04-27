@@ -57,6 +57,9 @@ public class QosProtocolWrapper implements Protocol {
     @Override
     public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
         if (REGISTRY_PROTOCOL.equals(invoker.getUrl().getProtocol())) {
+            //运维增强
+            //启动一个质量监控服务，基于这个服务可以做一些运维的操作
+            //提供一个22222的端口
             startQosServer(invoker.getUrl());
             return protocol.export(invoker);
         }

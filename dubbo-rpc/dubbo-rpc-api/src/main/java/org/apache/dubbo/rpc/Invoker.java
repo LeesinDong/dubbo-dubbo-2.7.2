@@ -41,6 +41,8 @@ public interface Invoker<T> extends Node {
      * @return result
      * @throws RpcException
      */
+    //invoke方法实现调用
+    //result调用的结果
     Result invoke(Invocation invocation) throws RpcException;
 
 }

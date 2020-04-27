@@ -66,6 +66,7 @@ public abstract class AbstractZookeeperClient<TargetDataListener, TargetChildLis
             create(path.substring(0, i), false);
         }
         if (ephemeral) {
+            //创建一个临时节点
             createEphemeral(path);
         } else {
             createPersistent(path);

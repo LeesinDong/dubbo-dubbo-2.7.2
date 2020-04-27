@@ -410,16 +410,19 @@ public abstract class AbstractRegistry implements Registry {
         if (result.size() == 0) {
             return;
         }
+        //*****************************************************
         Map<String, List<URL>> categoryNotified = notified.computeIfAbsent(url, u -> new ConcurrentHashMap<>());
+        //result就是providers、configurators、routers
         for (Map.Entry<String, List<URL>> entry : result.entrySet()) {
             String category = entry.getKey();
             List<URL> categoryList = entry.getValue();
             categoryNotified.put(category, categoryList);
-            // 通知？ RegistryDirectory
+            //如果另外两个不管的话，应该就只对providers进行一个通知
+            // 通知？ listener是    RegistryDirectory  ，因为RegistryDirectory继承自NotifyListener
             listener.notify(categoryList);
             // We will update our cache file after each notification.
             // When our Registry has a subscribe failure due to network jitter, we can return at least the existing cache URL.
-            //dubbo:// 保存到文件中
+            //缓存,如果注册中心挂了，会缓存地址：把dubbo:// 保存到文件中
             saveProperties(url);
         }
     }

@@ -233,6 +233,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         removeFailedUnregistered(url);
         try {
             // Sending a registration request to the server side
+            //如果失败的话，走下面的catch
             doRegister(url);
         } catch (Exception e) {
             Throwable t = e;
@@ -252,6 +253,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             }
 
             // Record a failed registration request to a failed list, retry regularly
+            //记录失败的请求，后面还要重试
             addFailedRegistered(url);
         }
     }
@@ -292,8 +294,12 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         removeFailedSubscribed(url, listener);
         try {
             // Sending a subscription request to the server side
+            //这个listener是传进来的this，listener：即RegistryDirectory
+            //RegistryDirectory往下传，说明一定会用这个做一个监听
+            //到zookeeperRegistry里面
             doSubscribe(url, listener);
         } catch (Exception e) {
+            //失败重试的逻辑
             Throwable t = e;
 
             List<URL> urls = getCacheUrls(url);
@@ -316,6 +322,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             }
 
             // Record a failed registration request to a failed list, retry regularly
+            //记录失败，以后重试
             addFailedSubscribed(url, listener);
         }
     }
@@ -357,6 +364,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             throw new IllegalArgumentException("notify listener == null");
         }
         try {
+            //j
             doNotify(url, listener, urls);
         } catch (Exception t) {
             // Record a failed registration request to a failed list, retry regularly
@@ -366,6 +374,8 @@ public abstract class FailbackRegistry extends AbstractRegistry {
     }
 
     protected void doNotify(URL url, NotifyListener listener, List<URL> urls) {
+        //      j
+        //AbstractRegistry  父类 、抽象类
         super.notify(url, listener, urls);
     }
 

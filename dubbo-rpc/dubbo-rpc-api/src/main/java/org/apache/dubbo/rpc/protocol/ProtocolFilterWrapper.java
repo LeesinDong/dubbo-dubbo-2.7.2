@@ -52,11 +52,14 @@ public class ProtocolFilterWrapper implements Protocol {
 
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
         Invoker<T> last = invoker;
+        //根据group和key获得一个激活扩展点，获得的是filter的列表
         List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
 
         if (!filters.isEmpty()) {
+            //遍历filter列表
             for (int i = filters.size() - 1; i >= 0; i--) {
                 final Filter filter = filters.get(i);
+                //构建一个filter链
                 final Invoker<T> next = last;
                 last = new Invoker<T>() {
 
@@ -115,10 +118,14 @@ public class ProtocolFilterWrapper implements Protocol {
     }
 
     @Override
+    //
     public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
         if (REGISTRY_PROTOCOL.equals(invoker.getUrl().getProtocol())) {
             return protocol.export(invoker);
         }
+        //把传进来的invoker做一个责任链的包装
+        //最终再去调用dubbo protocol的export
+        //                          j
         return protocol.export(buildInvokerChain(invoker, SERVICE_FILTER_KEY, CommonConstants.PROVIDER));
     }
 

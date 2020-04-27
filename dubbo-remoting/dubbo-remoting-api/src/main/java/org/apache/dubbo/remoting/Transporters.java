@@ -54,6 +54,7 @@ public class Transporters {
             handler = new ChannelHandlerDispatcher(handlers);
         }
         //getTransporter() -> ExtensionLoader.getExtension(Transport.class).getExtension("netty");
+        //          j           j
         return getTransporter().bind(url, handler);
     }
 
@@ -73,10 +74,14 @@ public class Transporters {
         } else {
             handler = new ChannelHandlerDispatcher(handlers);
         }
+        //                          j
         return getTransporter().connect(url, handler);
     }
     //Transporter$Adaptive
+    //进去发现是方法级别的
     public static Transporter getTransporter() {
+        //适配器扩展点
+        //                                          j
         return ExtensionLoader.getExtensionLoader(Transporter.class).getAdaptiveExtension();
     }
 

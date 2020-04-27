@@ -104,6 +104,8 @@ public class ExtensionLoader<T> {
     private ExtensionLoader(Class<?> type) {
         this.type = type; //Protocol.class
         //TODO
+        //如果传进来的是ExtensionLoader这个类 ，就返回null，谁会无聊到去加载ExtensionLoader，自己加载自己？
+        //返回自适应的扩展点
         objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());
     }
 
@@ -211,6 +213,7 @@ public class ExtensionLoader<T> {
         List<T> exts = new ArrayList<>();
         List<String> names = values == null ? new ArrayList<>(0) : Arrays.asList(values);
         if (!names.contains(REMOVE_VALUE_PREFIX + DEFAULT_KEY)) {
+            //加载所有扩展点
             getExtensionClasses();
             for (Map.Entry<String, Object> entry : cachedActivates.entrySet()) {
                 String name = entry.getKey();
@@ -219,6 +222,7 @@ public class ExtensionLoader<T> {
                 String[] activateGroup, activateValue;
 
                 if (activate instanceof Activate) {
+                    //获得Active的Group和value
                     activateGroup = ((Activate) activate).group();
                     activateValue = ((Activate) activate).value();
                 } else if (activate instanceof com.alibaba.dubbo.common.extension.Activate) {
@@ -227,6 +231,7 @@ public class ExtensionLoader<T> {
                 } else {
                     continue;
                 }
+                //做一次match，如果group和value都和url传进来的匹配上，就添加到列表中返回。
                 if (isMatchGroup(group, activateGroup)) {
                     T ext = getExtension(name);
                     if (!names.contains(name)
@@ -366,6 +371,7 @@ public class ExtensionLoader<T> {
      * Return default extension, return <code>null</code> if it's not configured.
      */
     public T getDefaultExtension() {
+        //在这里面进行获取了cachedDefaultName
         getExtensionClasses();
         if (StringUtils.isBlank(cachedDefaultName) || "true".equals(cachedDefaultName)) {
             return null;
@@ -478,6 +484,7 @@ public class ExtensionLoader<T> {
 
     @SuppressWarnings("unchecked")
     public T getAdaptiveExtension() {
+        //缓存
         Object instance = cachedAdaptiveInstance.get();
         if (instance == null) {
             if (createAdaptiveInstanceError == null) {
@@ -485,6 +492,7 @@ public class ExtensionLoader<T> {
                     instance = cachedAdaptiveInstance.get();
                     if (instance == null) {
                         try {
+                            //j
                             instance = createAdaptiveExtension();
                             cachedAdaptiveInstance.set(instance);
                         } catch (Throwable t) {
@@ -540,10 +548,16 @@ public class ExtensionLoader<T> {
                 EXTENSION_INSTANCES.putIfAbsent(clazz, clazz.newInstance());
                 instance = (T) EXTENSION_INSTANCES.get(clazz);
             }
+            //如果需要依赖注入，就依赖注入
             injectExtension(instance);
+            //如果有包装类的话
             Set<Class<?>> wrapperClasses = cachedWrapperClasses;
             if (CollectionUtils.isNotEmpty(wrapperClasses)) {
                 for (Class<?> wrapperClass : wrapperClasses) {
+                    //通过依赖注入实现包装
+                    //怎么进行依赖注入的？
+                    //这里其实没有进行依赖注入(injectExtension中通过set方法,可是包装类中没有set方法),通过构造方法注入的
+                    // getConstructor(type).newInstance(instance)进行了依赖注入
                     instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
                 }
             }
@@ -553,11 +567,16 @@ public class ExtensionLoader<T> {
                     type + ") couldn't be instantiated: " + t.getMessage(), t);
         }
     }
+    //    依赖注入
+    // 对于扩展点进行依赖注入，简单来说就是如果当前加载的扩展点中存在一个成员属性（对象），并且提供了 set 方法，那么这个
+    // 方法就会执行依赖注入.
 
+    //如果当前有set方法，就获取set方法的参数的类型，然后通过getExtension实例化这个类型，通过反射调用执行set方法，进行依赖注入
     private T injectExtension(T instance) {
         try {
             if (objectFactory != null) {
                 for (Method method : instance.getClass().getMethods()) {
+                    //如果是set方法
                     if (isSetter(method)) {
                         /**
                          * Check {@link DisableInject} to see if we need auto injection for this property
@@ -565,12 +584,13 @@ public class ExtensionLoader<T> {
                         if (method.getAnnotation(DisableInject.class) != null) {
                             continue;
                         }
-                        Class<?> pt = method.getParameterTypes()[0];
-                        if (ReflectUtils.isPrimitives(pt)) {
+                        Class<?> pt = method.getParameterTypes()[0];//获得这个方法的参数参数类型
+                        if (ReflectUtils.isPrimitives(pt)) {//如果不是对象类型，则跳过
                             continue;
                         }
                         try {
-                            String property = getSetterProperty(method);
+                            String property = getSetterProperty(method);//获得这个方法的属性名称
+                            //根据 class 以及 name，使用自适应扩展点进行加载并且赋值到当前的 set 方法中
                             Object object = objectFactory.getExtension(pt, property);
                             if (object != null) {
                                 method.invoke(instance, object);
@@ -623,11 +643,13 @@ public class ExtensionLoader<T> {
     }
 
     private Map<String, Class<?>> getExtensionClasses() {
+
         Map<String, Class<?>> classes = cachedClasses.get();
         if (classes == null) {
             synchronized (cachedClasses) {
                 classes = cachedClasses.get();
                 if (classes == null) {
+                                //j
                     classes = loadExtensionClasses();
                     cachedClasses.set(classes);
                 }
@@ -641,6 +663,7 @@ public class ExtensionLoader<T> {
         cacheDefaultExtensionName();
 
         Map<String, Class<?>> extensionClasses = new HashMap<>();
+        //j
         loadDirectory(extensionClasses, DUBBO_INTERNAL_DIRECTORY, type.getName());
         loadDirectory(extensionClasses, DUBBO_INTERNAL_DIRECTORY, type.getName().replace("org.apache", "com.alibaba"));
         loadDirectory(extensionClasses, DUBBO_DIRECTORY, type.getName());
@@ -683,6 +706,7 @@ public class ExtensionLoader<T> {
             if (urls != null) {
                 while (urls.hasMoreElements()) {
                     java.net.URL resourceURL = urls.nextElement();
+                    //j
                     loadResource(extensionClasses, classLoader, resourceURL);
                 }
             }
@@ -711,6 +735,7 @@ public class ExtensionLoader<T> {
                                 line = line.substring(i + 1).trim(); //value
                             }
                             if (line.length() > 0) {
+                                //t
                                 loadClass(extensionClasses, resourceURL, Class.forName(line, true, classLoader), name);
                             }
                         } catch (Throwable t) {
@@ -726,15 +751,21 @@ public class ExtensionLoader<T> {
         }
     }
 
+    //四种缓存情况
     private void loadClass(Map<String, Class<?>> extensionClasses, java.net.URL resourceURL, Class<?> clazz, String name) throws NoSuchMethodException {
         if (!type.isAssignableFrom(clazz)) {
             throw new IllegalStateException("Error occurred when loading extension class (interface: " +
                     type + ", class line: " + clazz.getName() + "), class "
                     + clazz.getName() + " is not subtype of interface.");
         }
+        //如果是adaptive的类就缓存到cacheAdaptiveClass
+        //根据注解
         if (clazz.isAnnotationPresent(Adaptive.class)) {
+            //缓存自适应扩展点
             cacheAdaptiveClass(clazz);
-        } else if (isWrapperClass(clazz)) {
+        //              j
+        } else if (isWrapperClass(clazz)) {//如果当前的类是一个包装类，缓存到cacheWrapperClass中
+            //缓存包装类
             cacheWrapperClass(clazz);
         } else {
             clazz.getConstructor();
@@ -747,8 +778,10 @@ public class ExtensionLoader<T> {
 
             String[] names = NAME_SEPARATOR.split(name);
             if (ArrayUtils.isNotEmpty(names)) {
+                //如果有active注解就缓存为激活扩展点
                 cacheActivateClass(clazz, names[0]);
                 for (String n : names) {
+                    //缓存为基本的Extension
                     cacheName(clazz, n);
                     saveInExtensionClass(extensionClasses, clazz, name);
                 }
@@ -829,6 +862,7 @@ public class ExtensionLoader<T> {
         try {
             //type=Protocol.class
             clazz.getConstructor(type);
+            //就是说wrapper包装类中必须有对于protocol的一个构造方法，没有的话就抛出没有这个方法的异常，就不是包装类
             return true;
         } catch (NoSuchMethodException e) {
             return false;
@@ -851,22 +885,27 @@ public class ExtensionLoader<T> {
     @SuppressWarnings("unchecked")
     private T createAdaptiveExtension() {
         try {
-            //依赖注入
+            //分两步：获取扩展点实例，然后依赖注入，最后返回实例
+            //依赖注入(如果有set方法才依赖注入，也就是下面的injectExtension后面的参数里面自动获取set方法的参数进行注入)
             //获得一个自适应扩展点的实例
+            //          j                                j
             return injectExtension((T) getAdaptiveExtensionClass().newInstance());
         } catch (Exception e) {
             throw new IllegalStateException("Can't create adaptive extension " + type + ", cause: " + e.getMessage(), e);
         }
+
+
     }
 
     private Class<?> getAdaptiveExtensionClass() {
         getExtensionClasses(); //加载指定路径下的文件
 
         //cachedAdaptvieClass， @Adaptive这个表示在类上的
+        //应该是判断是否有@Adaptive这个注解的类
         if (cachedAdaptiveClass != null) {
             return cachedAdaptiveClass;
         }
-        //在方法级别
+        //在方法级别                     //j
         return cachedAdaptiveClass = createAdaptiveExtensionClass();
     }
 
@@ -877,7 +916,7 @@ public class ExtensionLoader<T> {
         //ClassLoader
         org.apache.dubbo.common.compiler.Compiler compiler = ExtensionLoader.
                 getExtensionLoader(org.apache.dubbo.common.compiler.Compiler.class).
-                getAdaptiveExtension(); //Javasssit
+                getAdaptiveExtension(); //默认值Javasssit
         return compiler.compile(code, classLoader);
     }
 

@@ -68,7 +68,8 @@ public class Exchangers {
         }
         url = url.addParameterIfAbsent(Constants.CODEC_KEY, "exchange");
 
-        //HeaderExchanger.
+        //HeaderExchanger. 只有这一个静态扩展点
+        //          j               j
         return getExchanger(url).bind(url, handler);
     }
 
@@ -108,15 +109,19 @@ public class Exchangers {
             throw new IllegalArgumentException("handler == null");
         }
         url = url.addParameterIfAbsent(Constants.CODEC_KEY, "exchange");
+        //                          j
         return getExchanger(url).connect(url, handler);
     }
 
     public static Exchanger getExchanger(URL url) {
         String type = url.getParameter(Constants.EXCHANGER_KEY, Constants.DEFAULT_EXCHANGER);
+        //          j
         return getExchanger(type);
     }
 
     public static Exchanger getExchanger(String type) {
+        //       根据type获取静态扩展点
+        //发现对应的文件中只有一个headerExchange
         return ExtensionLoader.getExtensionLoader(Exchanger.class).getExtension(type);
     }
 

@@ -36,6 +36,9 @@ public class HeaderExchanger implements Exchanger {
 
     @Override
     public ExchangeClient connect(URL url, ExchangeHandler handler) throws RemotingException {
+        //找到了和当时服务端绑定服务的类
+        //和下面差不多
+        //进入Transporters.connect
         return new HeaderExchangeClient(Transporters.connect(url, new DecodeHandler(new HeaderExchangeHandler(handler))), true);
     }
 
@@ -46,6 +49,10 @@ public class HeaderExchanger implements Exchanger {
          * Transporters.bind
          * new HeaderExchangeServer
          */
+        //又一个链DecodeHandler(new HeaderExchangeHandler())
+        //Transporters.bind绑定服务
+        //new HeaderExchangeServer再做一次包装
+        //                                              j
         return new HeaderExchangeServer(Transporters.bind(url, new DecodeHandler(new HeaderExchangeHandler(handler))));
     }
 

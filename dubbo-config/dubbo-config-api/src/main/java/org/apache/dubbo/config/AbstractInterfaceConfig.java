@@ -326,25 +326,34 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
     protected List<URL> loadRegistries(boolean provider) {
         // check && override if necessary
         List<URL> registryList = new ArrayList<URL>();
+        //registries配置的是否为空
         if (CollectionUtils.isNotEmpty(registries)) { //<dubbo:registry>
             for (RegistryConfig config : registries) {
                 String address = config.getAddress();
+                //如果adress为空的话0.0.0.0
                 if (StringUtils.isEmpty(address)) {
                     address = ANYHOST_VALUE;
                 }
+                //是合法的地址的话
                 if (!RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(address)) {
+                    //把配置封装到map中(ApplicationEvent、registr)
                     Map<String, String> map = new HashMap<String, String>();
-                    appendParameters(map, application); //application  name / owner ..
-                    appendParameters(map, config); // registry config
+                    appendParameters(map, application); //<dubbo:application application  name / owner ../>
+                    appendParameters(map, config); // registry config  <dubbo:registry address="">
                     map.put(PATH_KEY, RegistryService.class.getName());
                     appendRuntimeParameters(map);
+                    //map里面没有protocol就给默认的dubbo
                     if (!map.containsKey(PROTOCOL_KEY)) {
                         map.put(PROTOCOL_KEY, DUBBO_PROTOCOL);
                     }
+                    //把map转化成url  因为可能有多个地址 zookeeper://xxx  backup
                     List<URL> urls = UrlUtils.parseURLs(address, map);
 
+                    //设置protocol
                     for (URL url : urls) {
+                        //
                         url = URLBuilder.from(url)
+                                //通过keyvalue 保存下protocol,当做一个属性保存，然后将url的protocol换成registry
                                 .addParameter(REGISTRY_KEY, url.getProtocol())
                                 .setProtocol(REGISTRY_PROTOCOL)
                                 .build();

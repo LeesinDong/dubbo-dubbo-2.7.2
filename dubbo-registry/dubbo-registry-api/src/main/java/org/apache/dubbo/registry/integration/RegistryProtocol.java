@@ -200,21 +200,24 @@ public class RegistryProtocol implements Protocol {
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
         // registryUrl -> zookeeper://ip:port
         URL registryUrl = getRegistryUrl(originInvoker);
-        // providerUrl -> dubbo:// ip:port
+        // providerUrl -> dubbo:// ip:port 就是dubbo开头的
         URL providerUrl = getProviderUrl(originInvoker);
 
         // Subscribe the override data
         // FIXME When the provider subscribes, it will affect the scene : a certain JVM exposes the service and call
         //  the same service. Because the subscribed is cached key with the name of the service, it causes the
         //  subscription information to cover.
+        //服务治理，改了配置之后重新发布服务
         final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
 
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
+        //上面三四行忽略
 
         /***********************************/
         //doLocalExport 本质就是去启动一个netty服务
+        //                                              j
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
         // 把dubbo:// url注册到zk上
@@ -248,12 +251,18 @@ public class RegistryProtocol implements Protocol {
 
     @SuppressWarnings("unchecked")
     private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
+        //先不管
         String key = getCacheKey(originInvoker);
         //bounds -chm  ->computeIfAbsent  if(map.get(key)==null){map.put()}
+        //如果key不存在的话，走s -> {}
         return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
             //orginInvoker->   InvokerDelegate(DelegateProviderMetaDataInvoker(invoker))
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
             //protocol.export -> DubboProtocol.export(本质上就是 暴露一个 20880的端口）
+            //先变成了Protocol$Apaptive，在Protocol$Apaptive的export中变成了QosProtocolWrapper
+
+            //为什么要把dubboProtocol层层包装，为了增强
+            //QosProtocolWrapper运维增强 ProtocolListenerWrapper不用看，没有实现   ProtocolFilterWrapper
             //protocol- >Protocol$Apaptive ->QosProtocolWrapper(ProtocolListenerWrapper(ProtocolFilterWrapper(DubboProtocol(invoker))))
             return new ExporterChangeableWrapper<>((Exporter<T>) protocol.export(invokerDelegate), originInvoker);
         });
@@ -314,6 +323,7 @@ public class RegistryProtocol implements Protocol {
     private URL getRegistryUrl(Invoker<?> originInvoker) {
         URL registryUrl = originInvoker.getUrl();
         if (REGISTRY_PROTOCOL.equals(registryUrl.getProtocol())) {
+            //把前面的协议头换了，换成zookeeper
             //zookeeper
             String protocol = registryUrl.getParameter(REGISTRY_KEY, DEFAULT_REGISTRY);
             //registryUrl=zookeeper://
@@ -387,7 +397,7 @@ public class RegistryProtocol implements Protocol {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
-        //zookeeper://
+        //zookeeper://  修改protocol为zookeeper
         url = URLBuilder.from(url)
                 .setProtocol(url.getParameter(REGISTRY_KEY, DEFAULT_REGISTRY))
                 .removeParameter(REGISTRY_KEY)
@@ -395,11 +405,13 @@ public class RegistryProtocol implements Protocol {
         //ZookeeperRegistery
         Registry registry = registryFactory.getRegistry(url);
         //register://
+        //显然不是所以不走这里
         if (RegistryService.class.equals(type)) {
             return proxyFactory.getInvoker((T) registry, type, url);
         }
 
         // group="a,b" or group="*"
+        //这个过滤不用管
         Map<String, String> qs = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
         String group = qs.get(GROUP_KEY);
         if (group != null && group.length() > 0) {
@@ -408,6 +420,7 @@ public class RegistryProtocol implements Protocol {
             }
         }
         //Cluster->?
+        //这里
         return doRefer(cluster, registry, type, url);
     }
 
@@ -425,24 +438,32 @@ public class RegistryProtocol implements Protocol {
         // 2. 从注册中心拿到地址（providerUrl）
         // 3. 基于provider地址建立通信
         RegistryDirectory<T> directory = new RegistryDirectory<T>(type, url);
-        directory.setRegistry(registry); //registry -> 连接zk的api   ->获得url地址
-        directory.setProtocol(protocol); //protocol -> DubboProtocol()  -> 建立通信
+        directory.setRegistry(registry); //registry -> 连接zk的api   ->获得url地址   相当于上面的1
+        directory.setProtocol(protocol); //protocol -> DubboProtocol()  -> 建立通信  相当于上面的3
         // all attributes of REFER_KEY
         Map<String, String> parameters = new HashMap<String, String>(directory.getUrl().getParameters());
         URL subscribeUrl = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
         if (!ANY_VALUE.equals(url.getServiceInterface()) && url.getParameter(REGISTER_KEY, true)) {
             directory.setRegisteredConsumerUrl(getRegisteredConsumerUrl(subscribeUrl, url));
-            registry.register(directory.getRegisteredConsumerUrl()); //consumer://
+            registry.register(directory.getRegisteredConsumerUrl()); //consumer:// 注册一个consumer协议不管
         }
-        directory.buildRouterChain(subscribeUrl);
+        directory.buildRouterChain(subscribeUrl); //忽略
         //订阅
+        //          j 很关键
         directory.subscribe(subscribeUrl.addParameter(CATEGORY_KEY,
                 PROVIDERS_CATEGORY + "," + CONFIGURATORS_CATEGORY + "," + ROUTERS_CATEGORY));
         /******************************************/
 
 
-        //MockClusterWrapper(FailoverCluster(
-        //Directory
+        // proxy.sayHello() 的时候已经建立好了连接
+            // 负载均衡->seletct(List<targetUrls>)，就是在Directory里面构建的
+
+
+        //通过文件查看，有wrapper，所以会被加载，并注入默认的clusterFailoverCluster
+        //MockClusterWrapper(FailoverCluster())
+        //Directory//暂时不管
+        //invoker是在这里生成的
+        //cluster是扩展点，通过set方法生成的
         Invoker invoker = cluster.join(directory);
         ProviderConsumerRegTable.registerConsumer(invoker, url, subscribeUrl, directory);
         return invoker;

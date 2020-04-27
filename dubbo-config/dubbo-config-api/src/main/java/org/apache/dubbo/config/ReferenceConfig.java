@@ -241,6 +241,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
     }
 
     //返回一个代理对象（）
+    //这个代理赋值给注解或者applicationContext getBean这种方式拿到对象
     public synchronized T get() {
         checkAndUpdateSubConfigs(); //检查配置和完善配置
 
@@ -321,8 +322,9 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
 
         //registry: 192.168.1.13:2181
         String hostToRegistry = ConfigUtils.getSystemProperty(DUBBO_IP_TO_REGISTRY);
+        //如果registry为空的话
         if (StringUtils.isEmpty(hostToRegistry)) {
-            hostToRegistry = NetUtils.getLocalHost(); //0.0.0.0
+            hostToRegistry = NetUtils.getLocalHost();//如果为空的话，选择本地的0.0.0.0
         } else if (isInvalidLocalHost(hostToRegistry)) {
             throw new IllegalArgumentException("Specified invalid registry ip from property:" + DUBBO_IP_TO_REGISTRY + ", value:" + hostToRegistry);
         }
@@ -360,8 +362,10 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
             }
         } else {
             urls.clear(); // reference retry init will add url to urls, lead to OOM
-            //url -> 点对点 ()
+            //url -> 点对点 () 直连的方式
+            //？<dubbo:reference interface="com.leesin.IPayService" id="payService" url="dubbo://192.168.1.2:20880/com.leesin.IPayService
             if (url != null && url.length() > 0) { // user specified URL, could be peer-to-peer address, or register center's address.
+                //对直连的方式进行拆分，因为可能配置多个
                 String[] us = SEMICOLON_SPLIT_PATTERN.split(url);
                 if (us != null && us.length > 0) {
                     for (String u : us) {
@@ -370,6 +374,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                             url = url.setPath(interfaceName);
                         }
                         if (REGISTRY_PROTOCOL.equals(url.getProtocol())) {
+                            //添加到urls
                             urls.add(url.addParameterAndEncoded(REFER_KEY, StringUtils.toQueryString(map)));
                         } else {
                             urls.add(ClusterUtils.mergeUrl(url, map));
@@ -378,16 +383,20 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                 }
             } else {//从注册中心去获得服务地址
                 // if protocols not injvm checkRegistry
+                //不是injvm
                 if (!LOCAL_PROTOCOL.equalsIgnoreCase(getProtocol())){
                     checkRegistry();
                     //us: registry://
+                    //解析Registries，和服务端的一样，可能配置多个，所以是list
                     List<URL> us = loadRegistries(false);
                     if (CollectionUtils.isNotEmpty(us)) {
                         for (URL u : us) {
+                            //监控的，略过
                             URL monitorUrl = loadMonitor(u);
                             if (monitorUrl != null) {
                                 map.put(MONITOR_KEY, URL.encode(monitorUrl.toFullString()));
                             }
+                            //最后加到这里
                             urls.add(u.addParameterAndEncoded(REFER_KEY, StringUtils.toQueryString(map)));
                         }
                     }
@@ -396,13 +405,16 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                     }
                 }
             }
-            //urls.size=1;()
+            //urls.size=1;()  当前是1，因为只配置了一个，当前的例子来说
             if (urls.size() == 1) {
                 //构建一个invoker(Protocol)
-                //Protocol$Adaptive -> getExtension("registry")->Qos(listener(filter(RegisterProtol
-                //RegisterProtocol.refer()
+                //这是客户端代理，这个和服务端代理是不一样的
+                //REF_PROTOCOL自适应扩展点
+                //包装和服务端一样的
+                //REF_PROTOCOL：Protocol$Adaptive -> getExtension("registry")->Qos(listener(filter(RegisterProtol
+                //前面的还是一样的，最后要调用：RegisterProtocol.refer()
                 invoker = REF_PROTOCOL.refer(interfaceClass, urls.get(0));
-            } else {
+            } else {//因为只有1个，所以不看else
                 List<Invoker<?>> invokers = new ArrayList<Invoker<?>>();
                 URL registryURL = null;
                 for (URL url : urls) {

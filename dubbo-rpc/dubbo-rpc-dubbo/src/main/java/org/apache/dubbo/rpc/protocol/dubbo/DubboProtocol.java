@@ -287,6 +287,7 @@ public class DubboProtocol extends AbstractProtocol {
         // export service.
         String key = serviceKey(url);
         //构建的invoker ->DubboExporter ()
+        //invoker修饰成DubboExporter放到map里面
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
         exporterMap.put(key, exporter);
 
@@ -314,16 +315,22 @@ public class DubboProtocol extends AbstractProtocol {
 
     private void openServer(URL url) {
         // find server.
+        //获得地址信息
         String key = url.getAddress();
         //client can export a service which's only for server to invoke
+        //是不是server端
         boolean isServer = url.getParameter(IS_SERVER_KEY, true);
         if (isServer) {
             //缓存， 一个key只对应一个exchangeServer
+            //信息交换服务
             ExchangeServer server = serverMap.get(key);
+            //双重检测
             if (server == null) {
                 synchronized (this) {
                     server = serverMap.get(key);
+                    //为空就添加
                     if (server == null) {
+                        //                      j
                         serverMap.put(key, createServer(url));
                     }
                 }
@@ -337,20 +344,26 @@ public class DubboProtocol extends AbstractProtocol {
     private ExchangeServer createServer(URL url) {
         url = URLBuilder.from(url)
                 // send readonly event when server closes, it's enabled by default
+                //服务关闭之后是不是发布一个只读的事件
                 .addParameterIfAbsent(CHANNEL_READONLYEVENT_SENT_KEY, Boolean.TRUE.toString())
                 // enable heartbeat by default
+                //心跳
                 .addParameterIfAbsent(HEARTBEAT_KEY, String.valueOf(DEFAULT_HEARTBEAT))
+                //序列化反序列化  dubbo序列化
                 .addParameter(CODEC_KEY, DubboCodec.NAME)
                 .build();
         //获得当前应该采用什么样的方式来发布服务， netty3, netty4, mina , grizzy,
         String str = url.getParameter(SERVER_KEY, DEFAULT_REMOTING_SERVER);
 
+        //不存在就报错
         if (str != null && str.length() > 0 && !ExtensionLoader.getExtensionLoader(Transporter.class).hasExtension(str)) {
             throw new RpcException("Unsupported server type: " + str + ", url: " + url);
         }
 
         ExchangeServer server;
         try {
+            //绑定一个服务
+            //                  j
             server = Exchangers.bind(url, requestHandler);
         } catch (RemotingException e) {
             throw new RpcException("Fail to start server(url: " + url + ") " + e.getMessage(), e);
@@ -409,7 +422,9 @@ public class DubboProtocol extends AbstractProtocol {
         optimizeSerialization(url);
 
         // create rpc invoker.
-        //getClients(url)
+        //getClients(url) 构建通信
+        //构建一个DubboInvoker返回出去
+        //                                                                  j
         DubboInvoker<T> invoker = new DubboInvoker<T>(serviceType, url, getClients(url), invokers);
         invokers.add(invoker);
 
@@ -420,7 +435,8 @@ public class DubboProtocol extends AbstractProtocol {
         // whether to share connection
 
         boolean useShareConnect = false;
-
+        //配置是共享连接还是多个连接，客户端和服务端可以建立一条连接，也可以建立多条，一般默认是一条
+        //所以默认共享连接去建立
         int connections = url.getParameter(CONNECTIONS_KEY, 0);
         List<ReferenceCountExchangeClient> shareClients = null;
         // if not configured, connection is shared, otherwise, one connection for one service
@@ -433,6 +449,7 @@ public class DubboProtocol extends AbstractProtocol {
             String shareConnectionsStr = url.getParameter(SHARE_CONNECTIONS_KEY, (String) null);
             connections = Integer.parseInt(StringUtils.isBlank(shareConnectionsStr) ? ConfigUtils.getProperty(SHARE_CONNECTIONS_KEY,
                     DEFAULT_SHARE_CONNECTIONS) : shareConnectionsStr);
+            //getSharedClient进入
             shareClients = getSharedClient(url, connections);
         }
 
@@ -478,6 +495,7 @@ public class DubboProtocol extends AbstractProtocol {
 
             // If the clients is empty, then the first initialization is
             if (CollectionUtils.isEmpty(clients)) {
+                //                  j这里
                 clients = buildReferenceCountExchangeClientList(url, connectNum);
                 referenceClientMap.put(key, clients);
 
@@ -566,6 +584,7 @@ public class DubboProtocol extends AbstractProtocol {
      * @return
      */
     private ReferenceCountExchangeClient buildReferenceCountExchangeClient(URL url) {
+        //                                  j
         ExchangeClient exchangeClient = initClient(url);
 
         return new ReferenceCountExchangeClient(exchangeClient);
@@ -598,6 +617,7 @@ public class DubboProtocol extends AbstractProtocol {
                 client = new LazyConnectExchangeClient(url, requestHandler);
 
             } else {
+                //                      j
                 client = Exchangers.connect(url, requestHandler);
             }
 

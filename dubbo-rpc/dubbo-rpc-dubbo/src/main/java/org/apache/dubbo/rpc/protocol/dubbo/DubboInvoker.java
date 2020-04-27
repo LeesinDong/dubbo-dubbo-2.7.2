@@ -50,7 +50,8 @@ import static org.apache.dubbo.rpc.Constants.TOKEN_KEY;
  * DubboInvoker
  */
 public class DubboInvoker<T> extends AbstractInvoker<T> {
-
+    //构建完的连接
+    //为什么是数组？因为客户端和服务端可以建立多条通信
     private final ExchangeClient[] clients;
 
     private final AtomicPositiveInteger index = new AtomicPositiveInteger();
@@ -74,6 +75,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
     }
 
     @Override
+    //当前还是在客户端
     protected Result doInvoke(final Invocation invocation) throws Throwable {
         RpcInvocation inv = (RpcInvocation) invocation;
         final String methodName = RpcUtils.getMethodName(invocation);
@@ -89,6 +91,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
         }
         try {
             //表示当前的方法是否存在返回值
+            //通过客户端的连接发起一个通信
             boolean isOneway = RpcUtils.isOneway(getUrl(), invocation);
             int timeout = getUrl().getMethodParameter(methodName, TIMEOUT_KEY, DEFAULT_TIMEOUT);
             if (isOneway) {//不存在返回值

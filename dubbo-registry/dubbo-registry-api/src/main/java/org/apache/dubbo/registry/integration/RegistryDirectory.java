@@ -117,6 +117,9 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private volatile List<Configurator> configurators; // The initial value is null and the midway may be assigned to null, please use the local variable reference
 
     // Map<url, Invoker> cache service url to invoker mapping.
+    //这个就是list urls
+    //这个invoke可能不是一个，是多个
+    //invoker远程代理的对象
     private volatile Map<String, Invoker<T>> urlInvokerMap; // The initial value is null and the midway may be assigned to null, please use the local variable reference
     private volatile List<Invoker<T>> invokers;
 
@@ -166,10 +169,14 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     }
 
     public void subscribe(URL url) {
+        //保存当前的url
+        //注册一个监听，先不管
         setConsumerUrl(url);
         CONSUMER_CONFIGURATION_LISTENER.addNotifyListener(this);
         serviceConfigurationListener = new ReferenceConfigurationListener(this, url);
         //ZookeeperRegistry  ; listener: this ->RegistryDirectory
+        //             j
+        //进入FallbackRegistry  为什么？因为当前是ZookeeperRegistry，父类是这个，同provider逻辑
         registry.subscribe(url, this);
     }
 
@@ -231,7 +238,9 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
 
         // providers
         List<URL> providerURLs = categoryUrls.getOrDefault(PROVIDERS_CATEGORY, Collections.emptyList());
-        //拴心或者覆盖invoker
+        //前面先不管
+
+        //刷新或者覆盖invoker
         //providerURLs:  dubboo://ip:port
         refreshOverrideAndInvoker(providerURLs);
     }
@@ -258,14 +267,14 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private void refreshInvoker(List<URL> invokerUrls) {
         Assert.notNull(invokerUrls, "invokerUrls should not be null");
 
-        if (invokerUrls.size() == 1
+        if (invokerUrls.size() == 1//这里不用管，因为是空的话，就没有必要去获得invoker
                 && invokerUrls.get(0) != null
                 && EMPTY_PROTOCOL.equals(invokerUrls.get(0).getProtocol())) {
             this.forbidden = true; // Forbid to access
             this.invokers = Collections.emptyList();
             routerChain.setInvokers(this.invokers);
             destroyAllInvokers(); // Close all invokers
-        } else {
+        } else {//看这里
             this.forbidden = false; // Allow to access
             Map<String, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
             if (invokerUrls == Collections.<URL>emptyList()) {
@@ -280,7 +289,10 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
             if (invokerUrls.isEmpty()) {
                 return;
             }
+            //上面的也不用看了，就是看是不是空，是的话，添加一个缓存
+
             //toInvokers ，把invokerUrls 转化为invoker->
+            //建立连接和转换成invoker的关键逻辑
             Map<String, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
 
             /**
@@ -302,6 +314,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
             // toMergeMethodInvokerMap() will wrap some invokers having different groups, those wrapped invokers not should be routed.
             routerChain.setInvokers(newInvokers);
             this.invokers = multiGroup ? toMergeInvokerList(newInvokers) : newInvokers;
+            //保存在urlInvokerMap中，urlInvokerMap就是之前说的Map<String, Invoker<T>> urlInvokerMap;
             this.urlInvokerMap = newUrlInvokerMap;
 
             try {
@@ -423,7 +436,10 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                     } else {
                         enabled = url.getParameter(ENABLED_KEY, true);
                     }
+                    //这里
                     if (enabled) {
+                        //建立通信连接的方法
+                        //protocol是被层层包装的，省略了，最终还是调用dubboProtocol refer但是发现没有refer方法，因为写在了父类中AbstractProtocol
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {

@@ -82,6 +82,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
             group = PATH_SEPARATOR + group;
         }
         this.root = group;
+        //                                  j   只有一个默认的扩展点就是curator
         zkClient = zookeeperTransporter.connect(url);
         zkClient.addStateListener(state -> {
             if (state == StateListener.RECONNECTED) {
@@ -130,6 +131,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     public void doSubscribe(final URL url, final NotifyListener listener) {
         try {
+            //任何服务做匹配，肯定不走if
             if (ANY_VALUE.equals(url.getServiceInterface())) {
                 String root = toRootPath();
                 ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
@@ -162,8 +164,12 @@ public class ZookeeperRegistry extends FailbackRegistry {
                     }
                 }
             } else {
+                //当前服务的，就循环做一个notify
                 List<URL> urls = new ArrayList<>();
+                //toCategoriesPath针对不同类
                 //configurator/ consumer/ router
+                //循环zk下四个节点
+                //点进去toCategoriesPath看一下是四个节点
                 for (String path : toCategoriesPath(url)) {
                     ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
                     if (listeners == null) {
@@ -175,14 +181,19 @@ public class ZookeeperRegistry extends FailbackRegistry {
                         listeners.putIfAbsent(listener, (parentPath, currentChilds) -> ZookeeperRegistry.this.notify(url, listener, toUrlsWithEmpty(url, parentPath, currentChilds)));
                         zkListener = listeners.get(listener);
                     }
+                    //前面的if判断，都是判断是不是在集合里面，不是就put
                     zkClient.create(path, false);
+                    //这里是获得目标地址的地方
                     //对子节点进行监听 ->children : providerUrl
-                    //
                     List<String> children = zkClient.addChildListener(path, zkListener);
                     if (children != null) {
+                        //children放到urls里面
                         urls.addAll(toUrlsWithEmpty(url, path, children));
                     }
                 }
+                //上面总的来说就是对于zk中所有configurator/ consumer/ router /provider四个节点所有子节点放到集合中（不包含四个节点）
+                //为什么打断点最后显示的是三个？configurator  router  provider 可能是因为上面的child=null的判断，consumer child是null
+                //通知  urls这个集合中所有的
                 notify(url, listener, urls);
             }
         } catch (Throwable e) {
