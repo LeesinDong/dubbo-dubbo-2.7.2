@@ -302,6 +302,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         appendParameters(map, module);
         // remove 'default.' prefix for configs from ConsumerConfig
         // appendParameters(map, consumer, Constants.DEFAULT_KEY);
+        //consumer就是refrence
         appendParameters(map, consumer);
         appendParameters(map, this);
         Map<String, Object> attributes = null;
@@ -320,17 +321,21 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
             }
         }
 
+        // ********************************看这些就好了***********************************
+
         //registry: 192.168.1.13:2181
         String hostToRegistry = ConfigUtils.getSystemProperty(DUBBO_IP_TO_REGISTRY);
         //如果registry为空的话
         if (StringUtils.isEmpty(hostToRegistry)) {
-            hostToRegistry = NetUtils.getLocalHost();//如果为空的话，选择本地的0.0.0.0
+            //注册中心的地址如果为空的话，选择本地的0.0.0.0
+            hostToRegistry = NetUtils.getLocalHost();
         } else if (isInvalidLocalHost(hostToRegistry)) {
             throw new IllegalArgumentException("Specified invalid registry ip from property:" + DUBBO_IP_TO_REGISTRY + ", value:" + hostToRegistry);
         }
+        //放入hostToRegistry
         map.put(REGISTER_IP_KEY, hostToRegistry);
-
-        ref = createProxy(map); //真正意义上去构建proxy
+        //真正意义上去构建proxy
+        ref = createProxy(map);
 
 
         String serviceKey = URL.buildKey(interfaceName, group, version);
@@ -364,7 +369,8 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
             urls.clear(); // reference retry init will add url to urls, lead to OOM
             //url -> 点对点 () 直连的方式
             //？<dubbo:reference interface="com.leesin.IPayService" id="payService" url="dubbo://192.168.1.2:20880/com.leesin.IPayService
-            if (url != null && url.length() > 0) { // user specified URL, could be peer-to-peer address, or register center's address.
+            // user specified URL, could be peer-to-peer address, or register center's address.
+            if (url != null && url.length() > 0) {
                 //对直连的方式进行拆分，因为可能配置多个
                 String[] us = SEMICOLON_SPLIT_PATTERN.split(url);
                 if (us != null && us.length > 0) {
@@ -375,6 +381,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                         }
                         if (REGISTRY_PROTOCOL.equals(url.getProtocol())) {
                             //添加到urls
+                            //在这里还添加了从map中parameter
                             urls.add(url.addParameterAndEncoded(REFER_KEY, StringUtils.toQueryString(map)));
                         } else {
                             urls.add(ClusterUtils.mergeUrl(url, map));
@@ -450,6 +457,8 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
             metadataReportService.publishConsumer(consumerURL);
         }
         // create service proxy
+        //返回最终的代理对象
+        //进入javassistProxyFacotory
         return (T) PROXY_FACTORY.getProxy(invoker);
     }
 

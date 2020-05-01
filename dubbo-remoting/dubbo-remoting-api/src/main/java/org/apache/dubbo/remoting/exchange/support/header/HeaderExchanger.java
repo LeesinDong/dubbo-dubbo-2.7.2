@@ -39,6 +39,7 @@ public class HeaderExchanger implements Exchanger {
         //找到了和当时服务端绑定服务的类
         //和下面差不多
         //进入Transporters.connect
+        //                                              j
         return new HeaderExchangeClient(Transporters.connect(url, new DecodeHandler(new HeaderExchangeHandler(handler))), true);
     }
 

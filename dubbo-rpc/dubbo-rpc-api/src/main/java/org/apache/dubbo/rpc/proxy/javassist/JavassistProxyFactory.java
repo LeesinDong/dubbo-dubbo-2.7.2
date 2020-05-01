@@ -30,20 +30,26 @@ import org.apache.dubbo.rpc.proxy.InvokerInvocationHandler;
 public class JavassistProxyFactory extends AbstractProxyFactory {
 
     @Override
+    //这是消费端的
     @SuppressWarnings("unchecked")
     public <T> T getProxy(Invoker<T> invoker, Class<?>[] interfaces) {
+        //对invoker做一层包装，获得InvokerInvocationHandler，意味着后续发起服务调用的时候，会由InvokerInvocationHandler来进行处理
         return (T) Proxy.getProxy(interfaces).newInstance(new InvokerInvocationHandler(invoker));
     }
 
     @Override
+    //这是服务端的
     public <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) {
         // TODO Wrapper cannot handle this scenario correctly: the classname contains '$'
+        //                                  j获得代理类
         final Wrapper wrapper = Wrapper.getWrapper(proxy.getClass().getName().indexOf('$') < 0 ? proxy.getClass() : type);
+        //返回的是他。
         return new AbstractProxyInvoker<T>(proxy, type, url) {
             @Override
             protected Object doInvoke(T proxy, String methodName,
                                       Class<?>[] parameterTypes,
                                       Object[] arguments) throws Throwable {
+                //invokeMethod
                 return wrapper.invokeMethod(proxy, methodName, parameterTypes, arguments);
             }
         };

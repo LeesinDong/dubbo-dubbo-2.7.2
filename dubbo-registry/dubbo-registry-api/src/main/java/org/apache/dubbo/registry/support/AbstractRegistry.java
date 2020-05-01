@@ -400,9 +400,21 @@ public abstract class AbstractRegistry implements Registry {
         }
         // keep every provider's category.
         Map<String, List<URL>> result = new HashMap<>();
+        //遍历urls，根据url的分类，将他们回写到category对应的list中，然后将list放入hashmap （key=category，value=list<url>）
         for (URL u : urls) {
             if (UrlUtils.isMatch(url, u)) {
+                //
                 String category = u.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY);
+                //// java8之前。从map中根据key获取value操作可能会有下面的操作
+                // Object key = map.get("key");
+                // if (key == null) {
+                //     key = new Object();
+                //     map.put("key", key);
+                // }
+                //
+                // // java8之后。上面的操作可以简化为一行，若key对应的value为空，会将第二个参数的返回值存入并返回
+                // Object key2 = map.computeIfAbsent("key", k -> new Object());
+                // https://blog.csdn.net/weixin_38229356/article/details/81129320
                 List<URL> categoryList = result.computeIfAbsent(category, k -> new ArrayList<>());
                 categoryList.add(u);
             }
@@ -418,6 +430,7 @@ public abstract class AbstractRegistry implements Registry {
             List<URL> categoryList = entry.getValue();
             categoryNotified.put(category, categoryList);
             //如果另外两个不管的话，应该就只对providers进行一个通知
+            //其他两个是0先不挂管了
             // 通知？ listener是    RegistryDirectory  ，因为RegistryDirectory继承自NotifyListener
             listener.notify(categoryList);
             // We will update our cache file after each notification.

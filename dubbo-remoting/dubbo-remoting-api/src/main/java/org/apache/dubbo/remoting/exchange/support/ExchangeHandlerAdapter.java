@@ -30,6 +30,8 @@ public abstract class ExchangeHandlerAdapter extends TelnetHandlerAdapter implem
 
     @Override
     public CompletableFuture<Object> reply(ExchangeChannel channel, Object msg) throws RemotingException {
+        //返回null
+        //其实是被重写了 DubboProtocol
         return null;
     }
 

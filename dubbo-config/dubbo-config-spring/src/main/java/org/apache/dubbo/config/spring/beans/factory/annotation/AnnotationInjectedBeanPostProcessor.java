@@ -517,7 +517,7 @@ public abstract class AnnotationInjectedBeanPostProcessor<A extends Annotation> 
             Object injectedObject = getInjectedObject(annotation, bean, beanName, injectedType, this);
 
             ReflectionUtils.makeAccessible(field);
-
+            //还是通过反射进行的依赖注入
             field.set(bean, injectedObject);
 
         }

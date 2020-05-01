@@ -371,6 +371,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     public synchronized void export() {
         checkAndUpdateSubConfigs(); //检查或者更新配置
         //     j
+        //什么时候要？借口没有开发完，别的需要测试，暂时不发布
         if (!shouldExport()) { //当前服务是否要发布   ,从serviceConfig中获取值
             return;
         }
@@ -453,14 +454,18 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void doExportUrls() {
+        //一直都在解析下面这句话
+        // <dubbo:service interface="com.gupaoedu.practice.LoginService"
+        // protocol="dubbo,webservice"（可以多个）
+        // registry="registryCenter1" ref="loginService" />
+
         //（N）加载注册中心，并且成成URL地址
         //URL(来驱动流程的执行)->[  registry://192.168.13.106:2181/org.apache.dubbo.registry.RegsitryService/....]
         //URL相当于一个上下文
-        //                              j
         List<URL> registryURLs = loadRegistries(true);
-        //如果有多个url，就是配置了多个注册中心，会循环使用对应的注册中心发布服务
+        //遍历所有的协议，因为支持多协议配置
         for (ProtocolConfig protocolConfig : protocols) {
-            //iterface , version ,group组成的key
+            //interface , version ,group组成的key
             String pathKey = URL.buildKey(getContextPath(protocolConfig).map(p -> p + "/" + path).orElse(path), group, version);
             //存储服务发布的元数据   providerModel就是一个缓存  pathKey 就是上一行得到的
             ProviderModel providerModel = new ProviderModel(pathKey, ref, interfaceClass);
@@ -579,7 +584,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         }
         //最终把map转化成一个url
         // export service
-        //主机绑定
+        //主机绑定  <dubbo:protocol host="205.182.23.201" port="">
         //最终目的获得发布出去的ip地址
         //registryURLs获得host并封装到map中
         String host = this.findConfigedHosts(protocolConfig, registryURLs, map);

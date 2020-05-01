@@ -62,6 +62,7 @@ public abstract class AbstractZookeeperClient<TargetDataListener, TargetChildLis
             }
         }
         int i = path.lastIndexOf('/');
+        //把前面的线创建好   dubbo/com.xx.xx/providers
         if (i > 0) {
             create(path.substring(0, i), false);
         }

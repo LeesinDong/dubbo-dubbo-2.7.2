@@ -58,16 +58,19 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
         List<Invoker<T>> copyInvokers = invokers;
         checkInvokers(copyInvokers, invocation);
         String methodName = RpcUtils.getMethodName(invocation);
-        //重试次数 默认2
+        //从url中获得 重试次数   默认2   注意后面是+1  所以就是3
         int len = getUrl().getMethodParameter(methodName, RETRIES_KEY, DEFAULT_RETRIES) + 1;
         if (len <= 0) {
+            //最小是1，就是调用一次，重试一次
             len = 1;
         }
         // retry loop.
-        RpcException le = null; // 异常信息
-        //invoked ->表示调用过的服务（记录调用过的服务）
+        RpcException le = null; // 异常信息记录
+        //invoked ->表示调用过的服务（记录调用过的服务） 服务的剔除
+        //把这个invoked放到了select方法中，如果在这个里面就不去进行调用 实现服务的剔除
         List<Invoker<T>> invoked = new ArrayList<Invoker<T>>(copyInvokers.size()); // invoked invokers.
         Set<String> providers = new HashSet<String>(len);
+        //默认2的话,还需要+1,所以这里len是3,所以会循环3次,也就是默认配置的3,会重试三次,因为还要算上本身的
         for (int i = 0; i < len; i++) {
             //Reselect before retry to avoid a change of candidate `invokers`.
             //NOTE: if `invokers` changed, then `invoked` also lose accuracy.
@@ -79,11 +82,14 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
             }
             //select -> 通过负载均衡算法之后，得到一个真正的目标invoker
             Invoker<T> invoker = select(loadbalance, invocation, copyInvokers, invoked);
+            //
             invoked.add(invoker);
             RpcContext.getContext().setInvokers((List) invoked);
             try {
                 //invoker -> InvokerDelegate(ProtocolFilterWrapper(ListenerInvokerWrapper(DubboInvoker)
-                Result result = invoker.invoke(invocation); //发起一个远程调用
+                //发起一个远程调用
+                //dubboinvoker
+                Result result = invoker.invoke(invocation);
                 if (le != null && logger.isWarnEnabled()) {
                     logger.warn("Although retry the method " + methodName
                             + " in the service " + getInterface().getName()
@@ -100,7 +106,7 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
                 if (e.isBiz()) { // 业务异常，不进行重试
                     throw e;
                 }
-                le = e; //保存异常信息
+                le = e; //不是业务异常,保存异常信息,进入下次循环
             } catch (Throwable e) {
                 le = new RpcException(e.getMessage(), e);
             } finally {

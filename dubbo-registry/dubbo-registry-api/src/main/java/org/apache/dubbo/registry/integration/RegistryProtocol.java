@@ -184,6 +184,9 @@ public class RegistryProtocol implements Protocol {
     public void register(URL registryUrl, URL registeredProviderUrl) {
         //registryUrl: zookeeper://
         //AbstractRegistryFactory
+        //registryFactory是一个自适应扩展点接口 方法级别，通过打断点，知道生成的动态适配的类
+        //registryUrl是zookeeper://所以是从自适应扩展点对应文件中找到zookeeperRegistryFactory，但是点击代码点不到，
+        // 所以应该是AbstractRegistryFactory，然后在抽象类中通过模板方法到了zookeeperRegistryFactory
         Registry registry = registryFactory.getRegistry(registryUrl);
         // registeredProviderUrl -> dubbo://192.168.1.13:20880/com.gupaoedu...
         //基于curator 去zk服务器上注册一个协议地址
@@ -217,18 +220,19 @@ public class RegistryProtocol implements Protocol {
 
         /***********************************/
         //doLocalExport 本质就是去启动一个netty服务
-        //                                              j
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
         // 把dubbo:// url注册到zk上
-        //
         final Registry registry = getRegistry(originInvoker);
+        // registeredProviderUrl -> dubbo://192.168.1.13:20880/com.gupaoedu...
         final URL registeredProviderUrl = getRegisteredProviderUrl(providerUrl, registryUrl);
         ProviderInvokerWrapper<T> providerInvokerWrapper = ProviderConsumerRegTable.registerProvider(originInvoker,
                 registryUrl, registeredProviderUrl);
         //to judge if we need to delay publish
         boolean register = registeredProviderUrl.getParameter("register", true);
-        if (register) {
+        if (register) {//肯定是true。不用管
+            //这里才是注册，
+            //// registeredProviderUrl -> dubbo://192.168.1.13:20880/com.gupaoedu...
             register(registryUrl, registeredProviderUrl);
             providerInvokerWrapper.setReg(true);
         }
@@ -257,6 +261,7 @@ public class RegistryProtocol implements Protocol {
         //如果key不存在的话，走s -> {}
         return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
             //orginInvoker->   InvokerDelegate(DelegateProviderMetaDataInvoker(invoker))
+            //providerUrl作为属性
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
             //protocol.export -> DubboProtocol.export(本质上就是 暴露一个 20880的端口）
             //先变成了Protocol$Apaptive，在Protocol$Apaptive的export中变成了QosProtocolWrapper
@@ -442,6 +447,7 @@ public class RegistryProtocol implements Protocol {
         directory.setProtocol(protocol); //protocol -> DubboProtocol()  -> 建立通信  相当于上面的3
         // all attributes of REFER_KEY
         Map<String, String> parameters = new HashMap<String, String>(directory.getUrl().getParameters());
+        //把url变成了consumer://
         URL subscribeUrl = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
         if (!ANY_VALUE.equals(url.getServiceInterface()) && url.getParameter(REGISTER_KEY, true)) {
             directory.setRegisteredConsumerUrl(getRegisteredConsumerUrl(subscribeUrl, url));

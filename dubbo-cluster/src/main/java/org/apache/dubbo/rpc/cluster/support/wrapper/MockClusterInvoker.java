@@ -69,7 +69,7 @@ public class MockClusterInvoker<T> implements Invoker<T> {
     }
 
     /**
-     * 1. mock远程通信 进行测试
+     * 1. 强制调用mock，用于服务端还没开发好的时候本地测试 进行测试
      * 2. 出现异常的情况下，实现服务降级
      *
      * @param invocation
@@ -77,25 +77,31 @@ public class MockClusterInvoker<T> implements Invoker<T> {
      * @throws RpcException
      */
     @Override
+    //result这里就是最终要拿到的结果值
     public Result invoke(Invocation invocation) throws RpcException {
         Result result = null;
-
-        //mock ->
+        ////directory目标服务的地址、目标服务的invoke 所以从目标服务地址中拿到mock 的key
+        //directory目标服务的地址、目标服务的invoke
+        //mock ->   所以从目标服务地址中拿到mock，的key ，mock是存在url中的
         String value = directory.getUrl().getMethodParameter(invocation.getMethodName(), MOCK_KEY, Boolean.FALSE.toString()).trim();
+        //如果是false的haul
         if (value.length() == 0 || value.equalsIgnoreCase("false")) {
             // 不走mock操作
+            //failover
             result = this.invoker.invoke(invocation);
-        } else if (value.startsWith("force")) { // 强制性的走本地的返回
+        } else if (value.startsWith("force")) { // 强制性的走本地的返回  强制降级  进行测试用的
             if (logger.isWarnEnabled()) {
                 logger.warn("force-mock: " + invocation.getMethodName() + " force-mock enabled , url : " + directory.getUrl());
             }
             //force:direct mock
+            //调用本地的方法，不会调用远程
             result = doMockInvoke(invocation, null);
-        } else { //调用服务失败.
+        } else { //调用服务失败.     也不是false，也不是force而是其他的
             //fail-mock
             try {
                 result = this.invoker.invoke(invocation); //远程调用
             } catch (RpcException e) {
+                //如果调用有异常
                 if (e.isBiz()) { //业务异常，直接抛出
                     throw e;
                 }
@@ -103,19 +109,22 @@ public class MockClusterInvoker<T> implements Invoker<T> {
                 if (logger.isWarnEnabled()) {
                     logger.warn("fail-mock: " + invocation.getMethodName() + " fail-mock enabled , url : " + directory.getUrl(), e);
                 }
-                result = doMockInvoke(invocation, e); //调用Mock类进行返回
+                result = doMockInvoke(invocation, e); //非业务异常，调用Mock类进行返回
             }
         }
         return result;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
+    //调用定义的class进行通信
+    //不需要细看
     private Result doMockInvoke(Invocation invocation, RpcException e) {
         Result result = null;
         Invoker<T> minvoker;
 
         List<Invoker<T>> mockInvokers = selectMockInvoker(invocation);
         if (CollectionUtils.isEmpty(mockInvokers)) {
+            //directory.getInterface()获得接口
             minvoker = (Invoker<T>) new MockInvoker(directory.getUrl(), directory.getInterface());
         } else {
             minvoker = mockInvokers.get(0);

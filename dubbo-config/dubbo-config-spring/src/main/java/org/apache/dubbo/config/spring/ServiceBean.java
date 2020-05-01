@@ -105,7 +105,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         return service;
     }
 
-    //监听  spring上下文被刷新或者加载的时候触发
+    //监听  ContextRefreshedEvent spring上下文被刷新或者加载的时候触发
     @Override
     public void onApplicationEvent(ContextRefreshedEvent event) {
         if (!isExported() && !isUnexported()) {
@@ -316,6 +316,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
                 setPath(beanName);
             }
         }
+        //前面所有的if判断都是在判断是不是加载到了config，没有就进行加载，说的是
         if (!supportedApplicationListener) {
             export();
         }

@@ -70,13 +70,22 @@ public abstract class AbstractLoadBalance implements LoadBalance {
      * @param invocation the invocation of this invoker
      * @return weight
      */
+    //1. 从url中拿到权重
+    //2. 如果当前启动时间<冷启动时间，就用冷启动的方式给一个权重，而不是直接从url中拿
     protected int getWeight(Invoker<?> invoker, Invocation invocation) {
+        //从参数中拿到
         int weight = invoker.getUrl().getMethodParameter(invocation.getMethodName(), WEIGHT_KEY, DEFAULT_WEIGHT);
+        //冷启动:服务启动的时间比较短,权重就小一点,能够接收的请求就少一些，就有一个慢慢启动的过程
         if (weight > 0) {
             long timestamp = invoker.getUrl().getParameter(REMOTE_TIMESTAMP_KEY, 0L);
+            //如果时间大于0
             if (timestamp > 0L) {
+                //猜测应该是当前时间-第一次拿到远端的请求，也就是启动的时间
                 int uptime = (int) (System.currentTimeMillis() - timestamp);
+                //冷启动，启动过程中不会把所有请求立马堆到这个机器上，而是慢慢的
+                //如果
                 int warmup = invoker.getUrl().getParameter(WARMUP_KEY, DEFAULT_WARMUP);
+                //如果
                 if (uptime > 0 && uptime < warmup) {
                     weight = calculateWarmupWeight(uptime, warmup, weight);
                 }

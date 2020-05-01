@@ -85,15 +85,17 @@ final class HeaderExchangeChannel implements ExchangeChannel {
         if (closed) {
             throw new RemotingException(this.getLocalAddress(), null, "Failed to send message " + message + ", cause: The channel " + this + " is closed!");
         }
+        //如果是request、response、string直接发送原型
         if (message instanceof Request
                 || message instanceof Response
                 || message instanceof String) {
             channel.send(message, sent);
         } else {
+            //否则，包装成Request对象
             Request request = new Request();
-            request.setVersion(Version.getProtocolVersion());
-            request.setTwoWay(false);
-            request.setData(message);
+            request.setVersion(Version.getProtocolVersion());//协议的版本
+            request.setTwoWay(false);//双向通信
+            request.setData(message);//message：就是传进来的Invocation ->
             channel.send(request, sent);
         }
     }
@@ -110,11 +112,12 @@ final class HeaderExchangeChannel implements ExchangeChannel {
         }
         // 组装一个request
         Request req = new Request();
-        req.setVersion(Version.getProtocolVersion()); //
-        req.setTwoWay(true);
-        req.setData(request); //Invocation ->
+        req.setVersion(Version.getProtocolVersion()); //协议的版本
+        req.setTwoWay(true);//双向通信
+        req.setData(request); //request：就是传进来的Invocation ->
         DefaultFuture future = DefaultFuture.newFuture(channel, req, timeout);
         try {
+            //这里
             channel.send(req);
         } catch (RemotingException e) {
             future.cancel();

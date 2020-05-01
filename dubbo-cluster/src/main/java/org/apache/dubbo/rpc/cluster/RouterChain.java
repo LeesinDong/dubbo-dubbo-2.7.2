@@ -95,7 +95,8 @@ public class RouterChain<T> {
      */
     public List<Invoker<T>> route(URL url, Invocation invocation) {
         List<Invoker<T>> finalInvokers = invokers;
-        for (Router router : routers) {//支持四种路由策略
+        for (Router router : routers) {//三种路由：条件路由、脚本路由、标签路由（tag）
+            //所以做三次循环，经过三个路由，最终得到一个invokerlist
             finalInvokers = router.route(finalInvokers, url, invocation);
         }
         return finalInvokers;

@@ -36,6 +36,7 @@ public class InvokerInvocationHandler implements InvocationHandler {
     }
 
     @Override
+    //proxy invocationHandler method 目标方法、args目标方法参数
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         //method  调用的目标方法
         //args 目标方法的参数
@@ -53,7 +54,8 @@ public class InvokerInvocationHandler implements InvocationHandler {
         if ("equals".equals(methodName) && parameterTypes.length == 1) {
             return invoker.equals(args[0]);
         }
-
+        //mockClusterInvoker
+        //RpcInvocation就是手写rpc里面的request对象
         return invoker.invoke(new RpcInvocation(method, args)).recreate();
     }
 }

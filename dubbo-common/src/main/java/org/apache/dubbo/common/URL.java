@@ -1078,8 +1078,11 @@ class URL implements Serializable {
         if (CollectionUtils.isEmptyMap(parameters)) {
             return this;
         }
+        //map是provideruri的
         Map<String, String> map = new HashMap<>(parameters);
+        //putAll会覆盖，即consumer覆盖provider
         map.putAll(getParameters());
+        //返回最终的map
         return new URL(protocol, username, password, host, port, path, map);
     }
 

@@ -82,10 +82,14 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
         inv.setAttachment(PATH_KEY, getUrl().getPath());
         inv.setAttachment(VERSION_KEY, version);
 
-        ExchangeClient currentClient; //初始化invoker的时候，构建的一个远程通信连接
+        ExchangeClient currentClient;//便是当前的连接
+        //clients :初始化invoker的时候，构建的一个远程通信连接
+        //可以是多个
         if (clients.length == 1) { //默认
+            //一个的话，就取第一个
             currentClient = clients[0];
         } else {
+            //多个的话
             //通过取模获得其中一个连接
             currentClient = clients[index.getAndIncrement() % clients.length];
         }
@@ -96,6 +100,7 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
             int timeout = getUrl().getMethodParameter(methodName, TIMEOUT_KEY, DEFAULT_TIMEOUT);
             if (isOneway) {//不存在返回值
                 boolean isSent = getUrl().getMethodParameter(methodName, Constants.SENT_KEY, false);
+                //send
                 currentClient.send(inv, isSent);
                 RpcContext.getContext().setFuture(null);
                 return AsyncRpcResult.newDefaultAsyncResult(invocation);

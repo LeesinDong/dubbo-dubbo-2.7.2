@@ -131,6 +131,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
 
 
     public RegistryDirectory(Class<T> serviceType, URL url) {
+        //comsumerurl :  zookeeper://
         super(url);
         if (serviceType == null) {
             throw new IllegalArgumentException("service type is null.");
@@ -176,7 +177,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         serviceConfigurationListener = new ReferenceConfigurationListener(this, url);
         //ZookeeperRegistry  ; listener: this ->RegistryDirectory
         //             j
-        //进入FallbackRegistry  为什么？因为当前是ZookeeperRegistry，父类是这个，同provider逻辑
+        //进入 FailbackRegistry  为什么？因为当前是ZookeeperRegistry，父类是这个，同provider逻辑
         registry.subscribe(url, this);
     }
 
@@ -418,6 +419,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                         ExtensionLoader.getExtensionLoader(Protocol.class).getSupportedExtensions()));
                 continue;
             }
+            //这里将providerurl中的属性赋值给了overrideuri
             URL url = mergeUrl(providerUrl);
 
             String key = url.toFullString(); // The parameter urls are sorted
@@ -440,6 +442,8 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                     if (enabled) {
                         //建立通信连接的方法
                         //protocol是被层层包装的，省略了，最终还是调用dubboProtocol refer但是发现没有refer方法，因为写在了父类中AbstractProtocol
+                        //InvokerDelegate(ListenerInvokerWrapper(ProtocolFilterWrapper(DubboInvoker)))
+                        //InvokerDelegate(Invoker)
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {
@@ -470,6 +474,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         providerUrl = providerUrl.addParameter(Constants.CHECK_KEY, String.valueOf(false)); // Do not check whether the connection is successful or not, always create Invoker!
 
         // The combination of directoryUrl and override is at the end of notify, which can't be handled here
+        //这里将providerurl中的属性赋值给了overrideuri
         this.overrideDirectoryUrl = this.overrideDirectoryUrl.addParametersIfAbsent(providerUrl.getParameters()); // Merge the provider side parameters
 
         if ((providerUrl.getPath() == null || providerUrl.getPath()
@@ -595,6 +600,8 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         List<Invoker<T>> invokers = null;
         try {
             // Get invokers from cache, only runtime routers will be executed.
+
+            //这里 进入route
             invokers = routerChain.route(getConsumerUrl(), invocation);
         } catch (Throwable t) {
             logger.error("Failed to execute router: " + getUrl() + ", cause: " + t.getMessage(), t);

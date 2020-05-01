@@ -31,6 +31,7 @@ public class ChannelHandlers {
     }
 
     public static ChannelHandler wrap(ChannelHandler handler, URL url) {
+        //                                      j ChannelHandler
         return ChannelHandlers.getInstance().wrapInternal(handler, url);
     }
 
@@ -43,6 +44,7 @@ public class ChannelHandlers {
     }
 
     protected ChannelHandler wrapInternal(ChannelHandler handler, URL url) {
+        //          MultiMessageHandler     HeartbeatHandler
         return new MultiMessageHandler(new HeartbeatHandler(ExtensionLoader.getExtensionLoader(Dispatcher.class)
                 .getAdaptiveExtension().dispatch(handler, url)));
     }

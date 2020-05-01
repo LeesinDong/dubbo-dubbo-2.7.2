@@ -95,6 +95,7 @@ public class CuratorZookeeperClient extends AbstractZookeeperClient<CuratorZooke
         try {
             client.create().forPath(path);
         } catch (NodeExistsException e) {
+        //    如果已经有了，这里不处理
         } catch (Exception e) {
             throw new IllegalStateException(e.getMessage(), e);
         }

@@ -132,6 +132,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
     public void doSubscribe(final URL url, final NotifyListener listener) {
         try {
             //任何服务做匹配，肯定不走if
+            //所有service层发布订阅
             if (ANY_VALUE.equals(url.getServiceInterface())) {
                 String root = toRootPath();
                 ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
@@ -164,26 +165,32 @@ public class ZookeeperRegistry extends FailbackRegistry {
                     }
                 }
             } else {
+                // 指定service发布订阅
                 //当前服务的，就循环做一个notify
                 List<URL> urls = new ArrayList<>();
                 //toCategoriesPath针对不同类
-                //configurator/ consumer/ router
+                //
                 //循环zk下四个节点
                 //点进去toCategoriesPath看一下是四个节点
+                //但是只遍历了三个节点configurator/ provider / router，因为 CATEGORY_KEY 不是any value，当前也没有把consumer注册进去
+                //打断点，这里就是三个
                 for (String path : toCategoriesPath(url)) {
                     ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
+                    // 如果之前该路径没有添加过listener，则创建一个map来放置listener
                     if (listeners == null) {
                         zkListeners.putIfAbsent(url, new ConcurrentHashMap<>());
                         listeners = zkListeners.get(url);
                     }
                     ChildListener zkListener = listeners.get(listener);
                     if (zkListener == null) {
+                        // 如果没有添加过对于子节点的listener，则创建,通知服务变化 回调NotifyListener
                         listeners.putIfAbsent(listener, (parentPath, currentChilds) -> ZookeeperRegistry.this.notify(url, listener, toUrlsWithEmpty(url, parentPath, currentChilds)));
                         zkListener = listeners.get(listener);
                     }
                     //前面的if判断，都是判断是不是在集合里面，不是就put
+                    //zk 中创建三个节点
                     zkClient.create(path, false);
-                    //这里是获得目标地址的地方
+                    //这里是获得目标地址的地方  这里是获得目标地址的地方  这里是获得目标地址的地方
                     //对子节点进行监听 ->children : providerUrl
                     List<String> children = zkClient.addChildListener(path, zkListener);
                     if (children != null) {
@@ -191,8 +198,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
                         urls.addAll(toUrlsWithEmpty(url, path, children));
                     }
                 }
-                //上面总的来说就是对于zk中所有configurator/ consumer/ router /provider四个节点所有子节点放到集合中（不包含四个节点）
-                //为什么打断点最后显示的是三个？configurator  router  provider 可能是因为上面的child=null的判断，consumer child是null
+                //总结：创建configurator/ provider/ router三个节点的子节点添加监听并放到urls中
                 //通知  urls这个集合中所有的
                 notify(url, listener, urls);
             }
@@ -259,6 +265,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
 
     private String[] toCategoriesPath(URL url) {
         String[] categories;
+        // 因为 CATEGORY_KEY 不是any value，当前也没有把consumer注册进去
         if (ANY_VALUE.equals(url.getParameter(CATEGORY_KEY))) {
             categories = new String[]{PROVIDERS_CATEGORY, CONSUMERS_CATEGORY, ROUTERS_CATEGORY, CONFIGURATORS_CATEGORY};
         } else {
@@ -272,10 +279,13 @@ public class ZookeeperRegistry extends FailbackRegistry {
     }
 
     private String toCategoryPath(URL url) {
+        // dubbo/interface            /                                 provider
+        //                                                      从url中获取key 为 category的value ，默认provider
         return toServicePath(url) + PATH_SEPARATOR + url.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY);
     }
 
     private String toUrlPath(URL url) {
+        //dubbo/interface/provider/   url
         return toCategoryPath(url) + PATH_SEPARATOR + URL.encode(url.toFullString());
     }
 

@@ -139,6 +139,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
             }
         }
 
+        //进入
         Invoker<T> invoker = doSelect(loadbalance, invocation, invokers, selected);
 
         if (sticky) {
@@ -156,6 +157,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         if (invokers.size() == 1) {
             return invokers.get(0);
         }
+        //进入 AbstractLoadbalance
         Invoker<T> invoker = loadbalance.select(invokers, getUrl(), invocation);
 
         //If the `invoker` is in the  `selected` or invoker is unavailable && availablecheck is true, reselect.
@@ -237,18 +239,22 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         checkWhetherDestroyed();
 
         // attachments -> 隐式传参
-        //RpcContext.getContext().setAttachment("key","value");
+        //RpcContext.getContext().setAttachment("key","value");  通过这种方式传自定义参数
+        //所以getAttachments判断有没有自定义参数
         Map<String, String> contextAttachments = RpcContext.getContext().getAttachments();
         if (contextAttachments != null && contextAttachments.size() != 0) {
+            //有的话组装到invocation  即手写rpc中的request
             ((RpcInvocation) invocation).addAttachments(contextAttachments);
         }
 
         /**
          *  去哪里拿到所有的目标服务呢？（RegistryDirectory）
          *  route 路由
+         *  假如没有路由的话，目标服务提供几个就是几个
          *  invokers.size = 2 ->
          *
          */
+        //list里面，经过了层层的路由
         List<Invoker<T>> invokers = list(invocation);
         //invokers -> route决定了invokers返回多少的问题(tag->a(2), tag->b)
         /**
@@ -261,6 +267,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         //loadbalace ->RandomLoadBalance
         LoadBalance loadbalance = initLoadBalance(invokers, invocation);
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
+        //failoverClusterInvoker
         return doInvoke(invocation, invokers, loadbalance);
     }
 
@@ -293,7 +300,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
                                        LoadBalance loadbalance) throws RpcException;
 
     protected List<Invoker<T>> list(Invocation invocation) throws RpcException {
-        return directory.list(invocation);
+            return directory.list(invocation);
     }
 
     /**
@@ -309,9 +316,12 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
      */
     protected LoadBalance initLoadBalance(List<Invoker<T>> invokers, Invocation invocation) {
         if (CollectionUtils.isNotEmpty(invokers)) {
+            //通过spi机制获得对应的loadbalance
+            //从invoker的url里面获得loadbalance的key对应的loadbalance
             return ExtensionLoader.getExtensionLoader(LoadBalance.class).getExtension(invokers.get(0).getUrl()
                     .getMethodParameter(RpcUtils.getMethodName(invocation), LOADBALANCE_KEY, DEFAULT_LOADBALANCE));
         } else {
+            //没有就返回默认的
             return ExtensionLoader.getExtensionLoader(LoadBalance.class).getExtension(DEFAULT_LOADBALANCE);
         }
     }

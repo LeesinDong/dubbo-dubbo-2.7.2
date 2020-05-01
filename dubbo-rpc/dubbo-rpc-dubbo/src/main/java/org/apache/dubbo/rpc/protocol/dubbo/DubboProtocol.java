@@ -116,7 +116,7 @@ public class DubboProtocol extends AbstractProtocol {
 
         @Override
         public CompletableFuture<Object> reply(ExchangeChannel channel, Object message) throws RemotingException {
-
+            //不是Invocation 抛异常
             if (!(message instanceof Invocation)) {
                 throw new RemotingException(channel, "Unsupported request: "
                         + (message == null ? null : (message.getClass().getName() + ": " + message))
@@ -124,8 +124,10 @@ public class DubboProtocol extends AbstractProtocol {
             }
 
             Invocation inv = (Invocation) message;
+            //获得invoker
             Invoker<?> invoker = getInvoker(channel, inv);
             // need to consider backward-compatibility if it's a callback
+            //判断回调，略过
             if (Boolean.TRUE.toString().equals(inv.getAttachments().get(IS_CALLBACK_SERVICE_INVOKE))) {
                 String methodsStr = invoker.getUrl().getParameters().get("methods");
                 boolean hasMethod = false;
@@ -148,8 +150,10 @@ public class DubboProtocol extends AbstractProtocol {
                     return null;
                 }
             }
+
             RpcContext.getContext().setRemoteAddress(channel.getRemoteAddress());
             //invoker-> ProtocolFilterWrapper(InvokerDelegate(DelegateProviderMetaInvoker(AbstractProxyInvoker)
+            //这是服务端的invoker
             Result result = invoker.invoke(inv);
             return result.completionFuture().thenApply(Function.identity());
         }
@@ -259,8 +263,11 @@ public class DubboProtocol extends AbstractProtocol {
             inv.getAttachments().put(IS_CALLBACK_SERVICE_INVOKE, Boolean.TRUE.toString());
         }
 
+
+        //根据Invocation上面所有的参数组装一个serviceKey
         String serviceKey = serviceKey(port, path, inv.getAttachments().get(VERSION_KEY), inv.getAttachments().get(GROUP_KEY));
         //什么时候设置的exporterMap
+        //从exporterMap中根据servicekey得到export
         DubboExporter<?> exporter = (DubboExporter<?>) exporterMap.get(serviceKey);
 
         if (exporter == null) {
@@ -288,6 +295,7 @@ public class DubboProtocol extends AbstractProtocol {
         String key = serviceKey(url);
         //构建的invoker ->DubboExporter ()
         //invoker修饰成DubboExporter放到map里面
+        //key 和 export放到map中，下次请求过来的时候根据key得到export，进行调用
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
         exporterMap.put(key, exporter);
 
@@ -315,7 +323,7 @@ public class DubboProtocol extends AbstractProtocol {
 
     private void openServer(URL url) {
         // find server.
-        //获得地址信息
+        //获得地址信息 ip :port
         String key = url.getAddress();
         //client can export a service which's only for server to invoke
         //是不是server端
@@ -424,16 +432,13 @@ public class DubboProtocol extends AbstractProtocol {
         // create rpc invoker.
         //getClients(url) 构建通信
         //构建一个DubboInvoker返回出去
-        //                                                                  j
         DubboInvoker<T> invoker = new DubboInvoker<T>(serviceType, url, getClients(url), invokers);
         invokers.add(invoker);
-
         return invoker;
     }
 
     private ExchangeClient[] getClients(URL url) {
         // whether to share connection
-
         boolean useShareConnect = false;
         //配置是共享连接还是多个连接，客户端和服务端可以建立一条连接，也可以建立多条，一般默认是一条
         //所以默认共享连接去建立
