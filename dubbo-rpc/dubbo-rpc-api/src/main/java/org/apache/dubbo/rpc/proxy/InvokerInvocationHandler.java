@@ -45,6 +45,7 @@ public class InvokerInvocationHandler implements InvocationHandler {
         if (method.getDeclaringClass() == Object.class) {
             return method.invoke(invoker, args);
         }
+        //如果是tosting、hashcode、equals这些方法，就直接代用原本的方法
         if ("toString".equals(methodName) && parameterTypes.length == 0) {
             return invoker.toString();
         }

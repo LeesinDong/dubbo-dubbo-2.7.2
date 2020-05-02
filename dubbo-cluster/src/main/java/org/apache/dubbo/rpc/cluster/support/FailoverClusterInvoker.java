@@ -68,6 +68,7 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
         RpcException le = null; // 异常信息记录
         //invoked ->表示调用过的服务（记录调用过的服务） 服务的剔除
         //把这个invoked放到了select方法中，如果在这个里面就不去进行调用 实现服务的剔除
+        //不论是不是有异常都剔除，这里是调用过的就剔除，调用了selet方法的就剔除
         List<Invoker<T>> invoked = new ArrayList<Invoker<T>>(copyInvokers.size()); // invoked invokers.
         Set<String> providers = new HashSet<String>(len);
         //默认2的话,还需要+1,所以这里len是3,所以会循环3次,也就是默认配置的3,会重试三次,因为还要算上本身的
