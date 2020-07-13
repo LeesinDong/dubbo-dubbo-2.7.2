@@ -74,6 +74,7 @@ public class ExtensionLoader<T> {
 
     private static final String DUBBO_INTERNAL_DIRECTORY = DUBBO_DIRECTORY + "internal/";
 
+    //white + ， + white
     private static final Pattern NAME_SEPARATOR = Pattern.compile("\\s*[,]+\\s*");
 
     private static final ConcurrentMap<Class<?>, ExtensionLoader<?>> EXTENSION_LOADERS = new ConcurrentHashMap<>();
@@ -104,8 +105,8 @@ public class ExtensionLoader<T> {
     private ExtensionLoader(Class<?> type) {
         this.type = type; //Protocol.class
         //TODO
-        //如果传进来的是ExtensionLoader这个类 ，就返回null，谁会无聊到去加载ExtensionLoader，自己加载自己？
-        //返回自适应的扩展点
+        //就是说传进来的扩展点接口是ExtensionFactory的话，就返回null，不是的话就帮他获取一个objectFactory
+        // 因为ExtensionFactory不需要ExtensionFactory来帮自己注入，它没有要注入的东西，后面虽然会判断，但是这里能能省一点判断
         objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());
     }
 
@@ -236,6 +237,7 @@ public class ExtensionLoader<T> {
                     T ext = getExtension(name);
                     if (!names.contains(name)
                             && !names.contains(REMOVE_VALUE_PREFIX + name)
+                            //判断value
                             && isActive(activateValue, url)) {
                         exts.add(ext);
                     }
@@ -492,7 +494,7 @@ public class ExtensionLoader<T> {
                     instance = cachedAdaptiveInstance.get();
                     if (instance == null) {
                         try {
-                            //j
+                            //              j
                             instance = createAdaptiveExtension();
                             cachedAdaptiveInstance.set(instance);
                         } catch (Throwable t) {
@@ -558,6 +560,16 @@ public class ExtensionLoader<T> {
                     //怎么进行依赖注入的？
                     //这里其实没有进行依赖注入(injectExtension中通过set方法,可是包装类中没有set方法),通过构造方法注入的
                     // getConstructor(type).newInstance(instance)进行了依赖注入
+
+                    //倒序的，set前面的在 包装的最里层
+                    //wrapperClass.getConstructor(type).newInstance(instance) 这句话返回 执行构造方法wrapper(属性是当前实现类)，即最终返回wrapper
+                    // clazz.newInstance只能调用空参构造实例化
+                    // constructor.newInstance能调用有参数的
+                    //这里的参数是当前本身。
+                    //所以是  wrapper的构造函数(当前class)  将当前class注入到了所有wrapperclass中    （wrapper依赖于我，我是wrapper的属性）
+                    //例子https://blog.csdn.net/panda1234lee/article/details/9009719
+
+                    //injectExtension(warpper) 对于wrapper进行依赖注入（通过wrapperset方法，注入当前扩展点）
                     instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
                 }
             }
@@ -581,18 +593,24 @@ public class ExtensionLoader<T> {
                         /**
                          * Check {@link DisableInject} to see if we need auto injection for this property
                          */
+                        //配置了DisableInject注解，跳过
                         if (method.getAnnotation(DisableInject.class) != null) {
                             continue;
                         }
+                        //得到方法参数
                         Class<?> pt = method.getParameterTypes()[0];//获得这个方法的参数参数类型
+                        //String、boolean、Character这些基本类型，跳过
                         if (ReflectUtils.isPrimitives(pt)) {//如果不是对象类型，则跳过
                             continue;
                         }
                         try {
                             String property = getSetterProperty(method);//获得这个方法的属性名称
                             //根据 class 以及 name，使用自适应扩展点进行加载并且赋值到当前的 set 方法中
+                            //通过set方法参数获得扩展点
                             Object object = objectFactory.getExtension(pt, property);
                             if (object != null) {
+                                //当前实例注入进去
+                                //Instance 调用set方法的类 object 参数列表
                                 method.invoke(instance, object);
                             }
                         } catch (Exception e) {
@@ -660,6 +678,7 @@ public class ExtensionLoader<T> {
 
     // synchronized in getExtensionClasses
     private Map<String, Class<?>> loadExtensionClasses() {
+        //缓存spi默认值
         cacheDefaultExtensionName();
 
         Map<String, Class<?>> extensionClasses = new HashMap<>();
@@ -763,26 +782,36 @@ public class ExtensionLoader<T> {
         if (clazz.isAnnotationPresent(Adaptive.class)) {
             //缓存自适应扩展点
             cacheAdaptiveClass(clazz);
+        //    就一个
         //              j
         } else if (isWrapperClass(clazz)) {//如果当前的类是一个包装类，缓存到cacheWrapperClass中
             //缓存包装类
             cacheWrapperClass(clazz);
+            //set.add 缓存 有序的
         } else {
+            // 检测 clazz 是否有默认的构造方法，如果没有，则抛出异常
             clazz.getConstructor();
             if (StringUtils.isEmpty(name)) {
+                // 如果 name 为空，则尝试从 Extension 注解中获取 name，或使用小写的类名作为 name
                 name = findAnnotationName(clazz);
                 if (name.length() == 0) {
                     throw new IllegalStateException("No such extension name for the class " + clazz.getName() + " in the config " + resourceURL);
                 }
             }
-
+            // 切分 name  如果是以，分割的。
             String[] names = NAME_SEPARATOR.split(name);
             if (ArrayUtils.isNotEmpty(names)) {
                 //如果有active注解就缓存为激活扩展点
+                //  如果类上有 Activate 注解，则使用 names 数组的第一个元素作为键，
+                // 存储 name 到 Activate 注解对象的映射关系
+                //这里还能点进去，有注解判断的逻辑
+                //判断是不是激活扩展点   <name,activate> 通过name获得注解里面的内容
                 cacheActivateClass(clazz, names[0]);
                 for (String n : names) {
-                    //缓存为基本的Extension
+                    // 存储名称到 Class 的映射关系
+                    // map<clazz,name>
                     cacheName(clazz, n);
+                    //保存到map中
                     saveInExtensionClass(extensionClasses, clazz, name);
                 }
             }
@@ -794,6 +823,7 @@ public class ExtensionLoader<T> {
      */
     private void cacheName(Class<?> clazz, String name) {
         if (!cachedNames.containsKey(clazz)) {
+            // 存储 Class 到名称的映射关系
             cachedNames.put(clazz, name);
         }
     }
@@ -816,8 +846,10 @@ public class ExtensionLoader<T> {
      * for compatibility, also cache class with old alibaba Activate annotation
      */
     private void cacheActivateClass(Class<?> clazz, String name) {
+        //有active注解
         Activate activate = clazz.getAnnotation(Activate.class);
         if (activate != null) {
+            //缓存
             cachedActivates.put(name, activate);
         } else {
             // support com.alibaba.dubbo.common.extension.Activate
@@ -850,6 +882,7 @@ public class ExtensionLoader<T> {
         if (cachedWrapperClasses == null) {
             cachedWrapperClasses = new ConcurrentHashSet<>();
         }
+        //set.add
         cachedWrapperClasses.add(clazz);
     }
 
